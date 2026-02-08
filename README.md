@@ -301,7 +301,7 @@ Anonymous message where sender identity is hidden.
 
 ```bash
 # Clone the repository
-git clone https://github.com/blockshark-labs/chainmail-protocol.git
+git clone https://github.com/blocksharkcom/chainmail-protocol.git
 cd chainmail-protocol
 
 # Install API dependencies
@@ -708,7 +708,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <p>
   <a href="https://blockshark.com">blockshark.com</a> &bull;
   <a href="https://blockshark.com/contact-us">Contact Us</a> &bull;
-  <a href="mailto:hello@blockshark.com">hello@blockshark.com</a>
+  <a href="mailto:info@blockshark.com">info@blockshark.com</a> &bull;
+  <a href="https://t.me/blocksharkcom">Telegram</a>
 </p>
 
 <p>
@@ -724,5 +725,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 </p>
 
 <p align="center">
-  Made with care by the Chainmail Team
+  Made with care by the BlockShark Team
 </p>
