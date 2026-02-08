@@ -1,5 +1,5 @@
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { cn, formatDate, formatDmailAddress } from '@/lib/utils'
+import { cn, formatDate, formatChainmailAddress } from '@/lib/utils'
 import type { Email } from '@/store/mail'
 import { Lock, Mail } from 'lucide-react'
 
@@ -34,6 +34,12 @@ export function EmailList({ emails, selectedId, onSelect, type }: EmailListProps
             )}
           >
             <div className="flex items-start gap-3">
+              {/* Unread indicator */}
+              {!email.read && type === 'inbox' ? (
+                <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-4" />
+              ) : (
+                <div className="w-2 shrink-0" />
+              )}
               {/* Avatar placeholder */}
               <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
                 <span className="text-primary text-sm font-medium">
@@ -47,7 +53,7 @@ export function EmailList({ emails, selectedId, onSelect, type }: EmailListProps
                     "text-sm truncate",
                     !email.read && type === 'inbox' ? "font-semibold" : "font-medium"
                   )}>
-                    {formatDmailAddress(type === 'inbox' ? email.from : email.to)}
+                    {formatChainmailAddress(type === 'inbox' ? email.from : email.to)}
                   </span>
                   <span className="text-xs text-muted-foreground shrink-0">
                     {formatDate(email.timestamp)}

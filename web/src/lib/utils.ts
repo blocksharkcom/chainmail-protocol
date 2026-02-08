@@ -10,7 +10,7 @@ export function formatAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
-export function formatDmailAddress(address: string): string {
+export function formatChainmailAddress(address: string): string {
   if (!address) return ""
   if (address.length <= 16) return address
   return `${address.slice(0, 10)}...${address.slice(-6)}`

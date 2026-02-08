@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -14,12 +14,22 @@ interface ComposeModalProps {
 }
 
 export function ComposeModal({ isOpen, onClose, replyTo, replySubject }: ComposeModalProps) {
-  const [to, setTo] = useState(replyTo || '')
-  const [subject, setSubject] = useState(replySubject ? `Re: ${replySubject}` : '')
+  const [to, setTo] = useState('')
+  const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { addToSent } = useMailStore()
+
+  // Sync state when replyTo/replySubject props change
+  useEffect(() => {
+    if (replyTo) {
+      setTo(replyTo)
+    }
+    if (replySubject) {
+      setSubject(replySubject.startsWith('Re: ') ? replySubject : `Re: ${replySubject}`)
+    }
+  }, [replyTo, replySubject])
 
   if (!isOpen) return null
 

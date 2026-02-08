@@ -61,7 +61,7 @@ export function LoginPage() {
               <Mail className="h-12 w-12 text-primary" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold">dMail</h1>
+          <h1 className="text-3xl font-bold">Chainmail</h1>
           <p className="text-muted-foreground mt-2">
             Decentralized End-to-End Encrypted Email
           </p>
@@ -107,7 +107,7 @@ export function LoginPage() {
                   ) : (
                     <>
                       <Lock className="h-5 w-5" />
-                      Sign In to dMail
+                      Sign In to Chainmail
                     </>
                   )}
                 </Button>

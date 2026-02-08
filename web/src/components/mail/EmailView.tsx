@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
-import { formatDmailAddress } from '@/lib/utils'
+import { formatChainmailAddress } from '@/lib/utils'
 import type { Email } from '@/store/mail'
 import { ArrowLeft, Lock, Reply, Trash2 } from 'lucide-react'
 
@@ -60,7 +60,7 @@ export function EmailView({ email, onBack, onReply, type }: EmailViewProps) {
             </div>
 
             <div className="flex-1">
-              <div className="font-medium">{formatDmailAddress(displayAddress)}</div>
+              <div className="font-medium">{formatChainmailAddress(displayAddress)}</div>
               <div className="text-sm text-muted-foreground">
                 {addressLabel}: <span className="font-mono text-xs">{displayAddress}</span>
               </div>

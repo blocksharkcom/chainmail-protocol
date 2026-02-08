@@ -586,22 +586,73 @@ npm run test -- --testPathPattern=identity
 
 ## Roadmap
 
+### Completed
+
 - [x] Core messaging with E2E encryption
 - [x] Wallet-based authentication (SIWE)
 - [x] Local-only mode (works without P2P)
 - [x] NestJS API with Swagger documentation
 - [x] React web frontend with wallet connection
 - [x] In-memory registry for local development
-- [ ] Mobile app (React Native)
-- [ ] CLI tool for power users
-- [ ] Group messaging support
-- [ ] File attachments with encryption
-- [ ] Message threading
-- [ ] Contact management
-- [ ] Multi-device sync
-- [ ] ENS integration
-- [ ] IPFS storage for large attachments
-- [ ] Push notifications
+- [x] Multi-user identity management (per-wallet identities)
+- [x] Persistent read/unread status tracking
+- [x] Reply functionality with auto-populated recipients
+
+### Phase 1: SMTP Gateway - Decentralized Email Bridge
+
+Enable receiving emails from traditional email providers (Gmail, Outlook, etc.) to Chainmail addresses.
+
+- [ ] **Inbound SMTP Server** - Run SMTP server on port 25/587 to receive external emails
+- [ ] **MX Record Configuration** - DNS setup guide for `@chainmail.network` or custom domains
+- [ ] **Email-to-Chainmail Bridge** - Parse incoming SMTP emails, encrypt with recipient's public key, deliver to inbox
+- [ ] **SPF/DKIM/DMARC Verification** - Validate sender authenticity for inbound emails
+- [ ] **Spam Filtering** - Basic spam detection before encryption and delivery
+- [ ] **Outbound SMTP Relay** - Send emails from Chainmail to traditional email addresses (optional, requires sender verification)
+
+### Phase 2: P2P Network Infrastructure
+
+Build robust decentralized infrastructure for message relay and storage.
+
+- [ ] **Bootstrap Node Registry** - On-chain registry of reliable bootstrap nodes with staking
+- [ ] **Node Onboarding Flow** - Simplified setup for running a Chainmail relay node
+- [ ] **Storage Proof Verification** - Cryptographic proofs that nodes are storing messages correctly
+- [ ] **Proof-of-Storage Rewards** - Incentive mechanism for nodes providing reliable storage
+- [ ] **Node Reputation System** - Track uptime, delivery success rate, and reliability scores
+- [ ] **Geographic Distribution** - Encourage node diversity across regions for resilience
+
+### Phase 3: Enhanced Messaging Features
+
+- [ ] **Encrypted File Attachments** - Encrypt files with same E2E encryption, store on IPFS/Arweave
+- [ ] **Attachment Size Limits** - Configurable limits with chunked upload for large files
+- [ ] **Message Threading** - Conversation view with proper reply chains
+- [ ] **Contact Management** - Address book with nicknames and verified contacts
+- [ ] **Group Messaging** - Encrypted group conversations with key rotation
+- [ ] **Message Search** - Client-side search of decrypted message content
+
+### Phase 4: Web UI Improvements
+
+- [ ] **Dark Mode** - System-aware theme switching
+- [ ] **Keyboard Shortcuts** - Power user navigation (j/k, r, c, etc.)
+- [ ] **Rich Text Editor** - Markdown support with preview
+- [ ] **Drag & Drop Attachments** - Easy file attachment workflow
+- [ ] **Notification System** - Browser notifications for new messages
+- [ ] **Mobile Responsive** - Full mobile browser support
+
+### Phase 5: Protocol Enhancements
+
+- [ ] **ENS Integration** - Send to `name.eth` addresses
+- [ ] **Multi-Chain Support** - Polygon, Arbitrum, Base wallet authentication
+- [ ] **Message Expiration** - Self-destructing messages with configurable TTL
+- [ ] **Read Receipts** - Optional encrypted delivery/read confirmations
+- [ ] **Offline Queue** - Queue messages when recipient is offline, deliver when online
+
+### Future Considerations
+
+- [ ] CLI tool for power users and automation
+- [ ] Browser extension for quick compose
+- [ ] Hardware wallet message signing
+- [ ] Zero-knowledge proofs for sender privacy
+- [ ] Decentralized identity (DID) integration
 
 ---
 

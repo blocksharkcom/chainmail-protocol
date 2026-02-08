@@ -18,10 +18,10 @@ const wagmiAdapter = new WagmiAdapter({
 
 // Metadata for the app
 const metadata = {
-  name: 'dMail',
-  description: 'Decentralized End-to-End Encrypted Email',
-  url: typeof window !== 'undefined' ? window.location.origin : 'https://dmail.app',
-  icons: ['/dmail.svg']
+  name: 'Chainmail',
+  description: 'Blockchain Email with P2P Encryption',
+  url: typeof window !== 'undefined' ? window.location.origin : 'https://chainmail.network',
+  icons: ['/chainmail.svg']
 }
 
 // Create modal

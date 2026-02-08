@@ -2,9 +2,14 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 class ApiClient {
   private token: string | null = null
+  private dmailAddress: string | null = null
 
   setToken(token: string | null) {
     this.token = token
+  }
+
+  setDmailAddress(address: string | null) {
+    this.dmailAddress = address
   }
 
   private async fetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -14,6 +19,11 @@ class ApiClient {
 
     if (this.token) {
       headers['Authorization'] = `Bearer ${this.token}`
+    }
+
+    // Include dmail address for inbox lookups
+    if (this.dmailAddress) {
+      headers['x-dmail-address'] = this.dmailAddress
     }
 
     const response = await fetch(`${API_URL}${path}`, {
@@ -97,14 +107,24 @@ class ApiClient {
   }
 
   async getInbox(): Promise<{ messages: any[] }> {
-    return this.fetch('/api/messages')
+    const params = this.dmailAddress ? `?address=${this.dmailAddress}` : ''
+    const result = await this.fetch<{ messages?: any[] } | any[]>(`/api/messages${params}`)
+    // Handle both array and { messages: [] } response formats
+    if (Array.isArray(result)) {
+      return { messages: result }
+    }
+    return { messages: result.messages || [] }
   }
 
   async getSent(): Promise<{ messages: any[] }> {
-    // Server stores sent messages in the same place, filter by 'from' on client
-    // For now, return empty - sent messages would need server-side tracking
     try {
-      return await this.fetch('/api/messages?type=sent')
+      const params = this.dmailAddress ? `address=${this.dmailAddress}&` : ''
+      const result = await this.fetch<{ messages?: any[] } | any[]>(`/api/messages?${params}type=sent`)
+      // Handle both array and { messages: [] } response formats
+      if (Array.isArray(result)) {
+        return { messages: result }
+      }
+      return { messages: result.messages || [] }
     } catch {
       return { messages: [] }
     }
@@ -119,6 +139,10 @@ class ApiClient {
 
   async getPublicKey(address: string): Promise<{ publicKey: string; encryptionPublicKey: string }> {
     return this.fetch(`/api/identity/${address}/publickey`)
+  }
+
+  async markAsRead(messageId: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/messages/${messageId}/read`, { method: 'POST' })
   }
 
   async registerUsername(username: string): Promise<{ success: boolean; username: string }> {

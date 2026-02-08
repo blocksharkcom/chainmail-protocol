@@ -14,7 +14,7 @@ export function MailPage() {
   const [replyTo, setReplyTo] = useState<string | undefined>()
   const [replySubject, setReplySubject] = useState<string | undefined>()
 
-  const { sessionToken } = useAuthStore()
+  const { sessionToken, dmailAddress } = useAuthStore()
   const {
     inbox,
     sent,
@@ -27,15 +27,20 @@ export function MailPage() {
     setLoading,
   } = useMailStore()
 
-  // Set token on mount
+  // Set token and dmail address on mount
   useEffect(() => {
     if (sessionToken) {
       api.setToken(sessionToken)
     }
-  }, [sessionToken])
+    if (dmailAddress) {
+      api.setDmailAddress(dmailAddress)
+    }
+  }, [sessionToken, dmailAddress])
 
-  // Fetch messages on mount
+  // Fetch messages when dmailAddress is set
   useEffect(() => {
+    if (!dmailAddress) return
+
     const fetchMessages = async () => {
       setLoading(true)
       try {
@@ -44,8 +49,10 @@ export function MailPage() {
           api.getSent(),
         ])
 
-        setInbox(inboxRes.messages.map(transformMessage))
-        setSent(sentRes.messages.map(transformMessage))
+        // Sort messages by timestamp descending (newest first)
+        const sortByNewest = (a: Email, b: Email) => b.timestamp - a.timestamp
+        setInbox(inboxRes.messages.map(transformMessage).sort(sortByNewest))
+        setSent(sentRes.messages.map(transformMessage).sort(sortByNewest))
       } catch (err) {
         console.error('Failed to fetch messages:', err)
       } finally {
@@ -54,7 +61,7 @@ export function MailPage() {
     }
 
     fetchMessages()
-  }, [])
+  }, [dmailAddress])
 
   const transformMessage = (msg: any): Email => ({
     id: msg.id,
@@ -70,10 +77,16 @@ export function MailPage() {
   const currentEmails = activeView === 'inbox' ? inbox : sent
   const unreadCount = inbox.filter((e) => !e.read).length
 
-  const handleSelectEmail = (email: Email) => {
+  const handleSelectEmail = async (email: Email) => {
     selectEmail(email)
     if (!email.read && activeView === 'inbox') {
       markAsRead(email.id)
+      // Persist to backend
+      try {
+        await api.markAsRead(email.id)
+      } catch (err) {
+        console.error('Failed to mark as read:', err)
+      }
     }
   }
 

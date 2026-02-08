@@ -59,7 +59,7 @@ export function Sidebar({ activeView, onViewChange, onCompose, unreadCount }: Si
 
     try {
       const result = await api.registerUsername(username)
-      setUsernameSuccess(`Registered: ${result.username}@dmail.network`)
+      setUsernameSuccess(`Registered: ${result.username}@chainmail.network`)
       setShowUsernameForm(false)
       setUsername('')
     } catch (err) {
@@ -74,7 +74,7 @@ export function Sidebar({ activeView, onViewChange, onCompose, unreadCount }: Si
       {/* Logo */}
       <div className="p-4 flex items-center gap-2">
         <Mail className="h-8 w-8 text-primary" />
-        <span className="text-xl font-bold">dMail</span>
+        <span className="text-xl font-bold">Chainmail</span>
       </div>
 
       <Separator />
@@ -127,7 +127,7 @@ export function Sidebar({ activeView, onViewChange, onCompose, unreadCount }: Si
       <div className="p-4 space-y-3">
         {/* dMail Address - Full with copy button */}
         <div className="text-xs">
-          <div className="text-muted-foreground mb-1">Your dMail Address</div>
+          <div className="text-muted-foreground mb-1">Your Chainmail Address</div>
           <div className="flex items-center gap-1">
             <div
               className="flex-1 font-mono text-foreground text-[10px] bg-muted/50 px-2 py-1.5 rounded break-all cursor-pointer hover:bg-muted"
@@ -184,7 +184,7 @@ export function Sidebar({ activeView, onViewChange, onCompose, unreadCount }: Si
                   onChange={(e) => setUsername(e.target.value.toLowerCase())}
                   className="h-7 text-xs"
                 />
-                <span className="text-muted-foreground self-center text-[10px]">@dmail.network</span>
+                <span className="text-muted-foreground self-center text-[10px]">@chainmail.network</span>
               </div>
               {usernameError && (
                 <div className="text-destructive text-[10px]">{usernameError}</div>

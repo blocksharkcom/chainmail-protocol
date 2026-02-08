@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { P2PNodeService, MessageEnvelope, StoredMessage } from '../network/p2p-node.service';
 import { EncryptionService, SerializedEncryptedMessage } from '../crypto/encryption.service';
 import { IdentityService } from '../crypto/identity.service';
+import { IdentityStoreService } from '../crypto/identity-store.service';
 import { Identity } from '../crypto/interfaces/identity.interface';
 import { DHTStorageService, MessageRecord } from '../storage/dht-storage.service';
 import { join } from 'path';
@@ -27,7 +28,7 @@ export interface SendResult {
 }
 
 @Injectable()
-export class MessagesService {
+export class MessagesService implements OnModuleInit {
   private currentIdentity: Identity | null = null;
   private localStorageInitialized = false;
 
@@ -35,8 +36,14 @@ export class MessagesService {
     private readonly p2pNode: P2PNodeService,
     private readonly encryptionService: EncryptionService,
     private readonly identityService: IdentityService,
+    private readonly identityStore: IdentityStoreService,
     private readonly dhtStorage: DHTStorageService,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    // Load all identities on startup
+    await this.identityStore.loadAllIdentities();
+  }
 
   /**
    * Set the current identity for this service instance
@@ -48,12 +55,14 @@ export class MessagesService {
 
   /**
    * Initialize local storage for when P2P is unavailable
+   * Uses a shared storage path so all messages are accessible locally
    */
   private async initLocalStorage(): Promise<void> {
-    if (this.localStorageInitialized || !this.currentIdentity) return;
+    if (this.localStorageInitialized) return;
 
     try {
-      const dbPath = join(DMAIL_DIR, 'messages', this.currentIdentity.address.slice(0, 16));
+      // Use a shared path for all users so messages can be delivered locally
+      const dbPath = join(DMAIL_DIR, 'messages', 'shared');
       await this.dhtStorage.init({ dbPath });
       this.localStorageInitialized = true;
     } catch (err) {
@@ -90,7 +99,7 @@ export class MessagesService {
   }
 
   /**
-   * Send an encrypted message
+   * Send an encrypted message (legacy - uses currentIdentity)
    */
   async sendMessage(
     to: string,
@@ -102,6 +111,25 @@ export class MessagesService {
       throw new Error('No identity set');
     }
 
+    return this.sendMessageWithSender(
+      this.currentIdentity.address,
+      to,
+      subject,
+      body,
+      recipientEncryptionKey,
+    );
+  }
+
+  /**
+   * Send an encrypted message with explicit sender address
+   */
+  async sendMessageWithSender(
+    from: string,
+    to: string,
+    subject: string,
+    body: string,
+    recipientEncryptionKey: Uint8Array,
+  ): Promise<SendResult> {
     const message = {
       subject,
       body,
@@ -112,7 +140,7 @@ export class MessagesService {
 
     const envelope: MessageEnvelope = {
       type: 'plain',
-      from: this.currentIdentity.address,
+      from,
       to,
       encrypted,
       timestamp: Date.now(),
@@ -132,10 +160,15 @@ export class MessagesService {
       const envelopeData = Buffer.from(JSON.stringify(envelope)).toString('base64');
       await this.dhtStorage.store(to, envelopeData);
 
-      // Also store in our sent items (if sending to ourselves, this also delivers)
-      if (to === this.currentIdentity.address) {
-        await this.dhtStorage.store(this.currentIdentity.address, envelopeData);
-      }
+      // Store in sender's sent folder with plaintext subject/body for display
+      const sentEnvelope = {
+        ...envelope,
+        plaintextSubject: subject,
+        plaintextBody: body,
+      };
+      const sentKey = `sent:${from}`;
+      const sentData = Buffer.from(JSON.stringify(sentEnvelope)).toString('base64');
+      await this.dhtStorage.store(sentKey, sentData);
 
       console.log('Message stored locally (P2P unavailable):', messageId);
     }
@@ -185,18 +218,12 @@ export class MessagesService {
   }
 
   /**
-   * Get inbox messages
+   * Get inbox messages for a specific address
+   * Falls back to currentIdentity if no address provided
    */
-  async getInbox(): Promise<StoredMessage[]> {
-    if (this.isP2PAvailable()) {
-      return this.p2pNode.getInbox();
-    }
-
-    // Use local storage when P2P unavailable
-    if (!this.currentIdentity) return [];
-
+  async getInboxForAddress(address: string): Promise<StoredMessage[]> {
     await this.initLocalStorage();
-    const records = await this.dhtStorage.getMessages(this.currentIdentity.address);
+    const records = await this.dhtStorage.getMessages(address);
 
     return records.map((record: MessageRecord) => {
       try {
@@ -213,6 +240,45 @@ export class MessagesService {
         return null;
       }
     }).filter((msg): msg is StoredMessage => msg !== null);
+  }
+
+  /**
+   * Get inbox messages
+   */
+  async getInbox(): Promise<StoredMessage[]> {
+    if (this.isP2PAvailable()) {
+      return this.p2pNode.getInbox();
+    }
+
+    // Use local storage when P2P unavailable
+    if (!this.currentIdentity) return [];
+
+    return this.getInboxForAddress(this.currentIdentity.address);
+  }
+
+  /**
+   * Get sent messages for a specific address
+   */
+  async getSentForAddress(address: string): Promise<(StoredMessage & { plaintextSubject?: string; plaintextBody?: string })[]> {
+    await this.initLocalStorage();
+    const sentKey = `sent:${address}`;
+    const records = await this.dhtStorage.getMessages(sentKey);
+
+    return records.map((record: MessageRecord) => {
+      try {
+        const envelope = JSON.parse(
+          Buffer.from(record.data, 'base64').toString(),
+        ) as MessageEnvelope & { plaintextSubject?: string; plaintextBody?: string };
+        return {
+          id: record.id,
+          ...envelope,
+          receivedAt: record.timestamp,
+          read: true, // Sent messages are always "read"
+        } as StoredMessage & { plaintextSubject?: string; plaintextBody?: string };
+      } catch {
+        return null;
+      }
+    }).filter((msg): msg is (StoredMessage & { plaintextSubject?: string; plaintextBody?: string }) => msg !== null);
   }
 
   /**
@@ -240,6 +306,41 @@ export class MessagesService {
         read: false,
       } as StoredMessage;
     } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Decrypt a message using the identity for a specific address
+   */
+  async decryptMessageForAddress(message: StoredMessage, address: string): Promise<DecryptedMessage | null> {
+    // Try to get identity from store
+    const identity = await this.identityStore.getIdentity(address);
+    if (!identity) {
+      console.warn(`No identity found for address: ${address}`);
+      return null;
+    }
+
+    try {
+      const encrypted = message.encrypted as SerializedEncryptedMessage;
+      const decrypted = this.encryptionService.decryptJson<{
+        subject: string;
+        body: string;
+        timestamp: number;
+      }>(encrypted, identity.encryptionPrivateKey);
+
+      return {
+        id: (message as StoredMessage & { id?: string }).id || '',
+        from: message.from || '',
+        to: message.to || '',
+        subject: decrypted.subject,
+        body: decrypted.body,
+        timestamp: message.timestamp,
+        receivedAt: message.receivedAt,
+        read: message.read,
+      };
+    } catch (err) {
+      console.warn(`Failed to decrypt message for ${address}:`, (err as Error).message);
       return null;
     }
   }
@@ -276,13 +377,41 @@ export class MessagesService {
   }
 
   /**
-   * Mark a message as read
+   * Get the identity store service
    */
-  async markAsRead(messageId: string): Promise<void> {
+  getIdentityStore(): IdentityStoreService {
+    return this.identityStore;
+  }
+
+  /**
+   * Mark a message as read for a specific address
+   */
+  async markAsReadForAddress(address: string, messageId: string): Promise<void> {
+    await this.initLocalStorage();
+    await this.dhtStorage.markAsRead(address, messageId);
+
     if (this.isP2PAvailable()) {
       await this.p2pNode.markAsRead(messageId);
     }
-    // Local storage doesn't track read status separately
+  }
+
+  /**
+   * Mark a message as read
+   */
+  async markAsRead(messageId: string): Promise<void> {
+    if (this.currentIdentity) {
+      await this.markAsReadForAddress(this.currentIdentity.address, messageId);
+    } else if (this.isP2PAvailable()) {
+      await this.p2pNode.markAsRead(messageId);
+    }
+  }
+
+  /**
+   * Get read message IDs for an address
+   */
+  async getReadMessageIds(address: string): Promise<Set<string>> {
+    await this.initLocalStorage();
+    return this.dhtStorage.getReadMessageIds(address);
   }
 
   /**

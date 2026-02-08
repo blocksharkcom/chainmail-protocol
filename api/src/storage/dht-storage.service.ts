@@ -310,6 +310,56 @@ export class DHTStorageService implements OnModuleDestroy {
   }
 
   /**
+   * Mark a message as read for a specific user
+   */
+  async markAsRead(userAddress: string, messageId: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Storage not initialized');
+    }
+
+    const key = `read:${userAddress}:${messageId}`;
+    await this.db.put(key, { read: true, timestamp: Date.now() } as any);
+  }
+
+  /**
+   * Check if a message is read for a specific user
+   */
+  async isRead(userAddress: string, messageId: string): Promise<boolean> {
+    if (!this.db) {
+      return false;
+    }
+
+    const key = `read:${userAddress}:${messageId}`;
+    try {
+      await this.db.get(key);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Get all read message IDs for a user
+   */
+  async getReadMessageIds(userAddress: string): Promise<Set<string>> {
+    if (!this.db) {
+      return new Set();
+    }
+
+    const readIds = new Set<string>();
+    const prefix = `read:${userAddress}:`;
+
+    for await (const [key] of this.db.iterator()) {
+      if ((key as string).startsWith(prefix)) {
+        const messageId = (key as string).slice(prefix.length);
+        readIds.add(messageId);
+      }
+    }
+
+    return readIds;
+  }
+
+  /**
    * Get storage statistics
    */
   async getStats(): Promise<StorageStats> {

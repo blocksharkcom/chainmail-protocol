@@ -4,7 +4,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 const SYSTEM_DESIGN_DESCRIPTION = `
-# dMail - Decentralized P2P Email System
+# Chainmail Protocol - Blockchain Email with P2P Encryption
 
 ## System Architecture
 
@@ -75,7 +75,7 @@ const SYSTEM_DESIGN_DESCRIPTION = `
 │         │                   │                   │                            │
 │         │    ┌──────────────┴──────────────┐    │                            │
 │         │    │      GossipSub PubSub       │    │                            │
-│         │    │   /dmail/1.0.0/mail topic   │    │                            │
+│         │    │ /chainmail/1.0.0/mail topic │    │                            │
 │         │    └─────────────────────────────┘    │                            │
 │         │                                       │                            │
 │         └───────────────────────────────────────┘                            │
@@ -139,7 +139,7 @@ Sender                          Network                         Recipient
 | **Forward Secrecy** | Double Ratchet Protocol | Protect past messages |
 | **Anonymity** | Sealed Envelopes | Hide sender identity |
 | **Privacy** | Onion Routing | Hide message path |
-| **Address Format** | Bech32 (dm1...) | Human-readable addresses |
+| **Address Format** | Bech32 (cm1...) | Human-readable addresses |
 
 ## Key Cryptographic Primitives
 
@@ -164,10 +164,10 @@ Sender                          Network                         Recipient
 
 | Protocol | Path | Purpose |
 |----------|------|---------|
-| Global Mail | \`/dmail/1.0.0/mail\` | GossipSub topic for all messages |
-| Fetch | \`/dmail/fetch/1.0.0\` | Retrieve stored messages |
-| DHT Store | \`/dmail/storage/1.0.0/store\` | Store messages on relay |
-| DHT Fetch | \`/dmail/storage/1.0.0/fetch\` | Fetch from DHT storage |
+| Global Mail | \`/chainmail/1.0.0/mail\` | GossipSub topic for all messages |
+| Fetch | \`/chainmail/fetch/1.0.0\` | Retrieve stored messages |
+| DHT Store | \`/chainmail/storage/1.0.0/store\` | Store messages on relay |
+| DHT Fetch | \`/chainmail/storage/1.0.0/fetch\` | Fetch from DHT storage |
 
 ---
 `;
@@ -192,12 +192,12 @@ async function bootstrap() {
 
   // Swagger documentation
   const config = new DocumentBuilder()
-    .setTitle('dMail API')
+    .setTitle('Chainmail Protocol API')
     .setDescription(SYSTEM_DESIGN_DESCRIPTION)
     .setVersion('1.0')
     .addBearerAuth()
     .addTag('auth', 'Wallet-based authentication using SIWE pattern')
-    .addTag('identity', 'Generate and manage dMail identities (Ed25519 + X25519 keys)')
+    .addTag('identity', 'Generate and manage Chainmail identities (Ed25519 + X25519 keys)')
     .addTag('messages', 'Send and receive end-to-end encrypted messages')
     .addTag('node', 'P2P node status and management')
     .build();
@@ -210,7 +210,7 @@ async function bootstrap() {
 
   console.log(`
 ╔═══════════════════════════════════════════════════════════════╗
-║                     dMail API Server                          ║
+║                  Chainmail Protocol API                       ║
 ╠═══════════════════════════════════════════════════════════════╣
 ║  Status:  Running                                             ║
 ║  Port:    ${port.toString().padEnd(52)}║

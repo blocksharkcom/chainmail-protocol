@@ -33,7 +33,7 @@ export const useAuthStore = create<AuthState>()(
         }),
     }),
     {
-      name: 'dmail-auth',
+      name: 'chainmail-auth',
     }
   )
 )

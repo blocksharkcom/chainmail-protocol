@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { IdentityService } from '../crypto/identity.service';
+import { IdentityStoreService } from '../crypto/identity-store.service';
 import { P2PNodeService } from '../network/p2p-node.service';
 import { MessagesService } from './messages.service';
 import { RegistryService } from '../blockchain/registry.service';
@@ -30,6 +31,7 @@ const DMAIL_DIR = join(homedir(), '.dmail');
 export class IdentityController {
   constructor(
     private readonly identityService: IdentityService,
+    private readonly identityStore: IdentityStoreService,
     private readonly p2pNode: P2PNodeService,
     private readonly messagesService: MessagesService,
     private readonly registryService: RegistryService,
@@ -39,16 +41,8 @@ export class IdentityController {
   @ApiOperation({ summary: 'Create a new identity' })
   @ApiResponse({ status: 201, description: 'Identity created', type: IdentityResponseDto })
   async createIdentity(@Body() dto: CreateIdentityDto): Promise<IdentityResponseDto> {
-    const identity = this.identityService.generate();
-
-    // Save identity to disk
-    if (!existsSync(DMAIL_DIR)) {
-      await mkdir(DMAIL_DIR, { recursive: true });
-    }
-
-    const serialized = this.identityService.serialize(identity);
-    const identityData = { ...serialized, name: dto.name };
-    await writeFile(join(DMAIL_DIR, 'identity.json'), JSON.stringify(identityData, null, 2));
+    // Create identity using the store service (auto-persists to ~/.dmail/identities/)
+    const identity = await this.identityStore.createIdentity(dto.name);
 
     // Register in local registry (for development without blockchain)
     this.registryService.registerLocal(
