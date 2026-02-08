@@ -1,0 +1,323 @@
+import { Injectable } from '@nestjs/common';
+import { P2PNodeService, MessageEnvelope, StoredMessage } from '../network/p2p-node.service';
+import { EncryptionService, SerializedEncryptedMessage } from '../crypto/encryption.service';
+import { IdentityService } from '../crypto/identity.service';
+import { Identity } from '../crypto/interfaces/identity.interface';
+import { DHTStorageService, MessageRecord } from '../storage/dht-storage.service';
+import { join } from 'path';
+import { homedir } from 'os';
+import { sha256 } from '@noble/hashes/sha256';
+
+const DMAIL_DIR = join(homedir(), '.dmail');
+
+export interface DecryptedMessage {
+  id: string;
+  from: string;
+  to: string;
+  subject: string;
+  body: string;
+  timestamp: number;
+  receivedAt: number;
+  read: boolean;
+}
+
+export interface SendResult {
+  messageId: string;
+  timestamp: number;
+}
+
+@Injectable()
+export class MessagesService {
+  private currentIdentity: Identity | null = null;
+  private localStorageInitialized = false;
+
+  constructor(
+    private readonly p2pNode: P2PNodeService,
+    private readonly encryptionService: EncryptionService,
+    private readonly identityService: IdentityService,
+    private readonly dhtStorage: DHTStorageService,
+  ) {}
+
+  /**
+   * Set the current identity for this service instance
+   */
+  async setIdentity(identity: Identity): Promise<void> {
+    this.currentIdentity = identity;
+    await this.initLocalStorage();
+  }
+
+  /**
+   * Initialize local storage for when P2P is unavailable
+   */
+  private async initLocalStorage(): Promise<void> {
+    if (this.localStorageInitialized || !this.currentIdentity) return;
+
+    try {
+      const dbPath = join(DMAIL_DIR, 'messages', this.currentIdentity.address.slice(0, 16));
+      await this.dhtStorage.init({ dbPath });
+      this.localStorageInitialized = true;
+    } catch (err) {
+      console.warn('Failed to initialize local storage:', (err as Error).message);
+    }
+  }
+
+  /**
+   * Check if P2P node is available
+   */
+  private isP2PAvailable(): boolean {
+    return this.p2pNode.isNodeStarted();
+  }
+
+  /**
+   * Generate a message ID from an envelope
+   */
+  private generateMessageId(envelope: MessageEnvelope): string {
+    const data = JSON.stringify({
+      from: envelope.from,
+      to: envelope.to,
+      encrypted: envelope.encrypted,
+      timestamp: envelope.timestamp,
+    });
+    const hash = sha256(new TextEncoder().encode(data));
+    return Buffer.from(hash).toString('hex').slice(0, 32);
+  }
+
+  /**
+   * Get the current identity
+   */
+  getIdentity(): Identity | null {
+    return this.currentIdentity;
+  }
+
+  /**
+   * Send an encrypted message
+   */
+  async sendMessage(
+    to: string,
+    subject: string,
+    body: string,
+    recipientEncryptionKey: Uint8Array,
+  ): Promise<SendResult> {
+    if (!this.currentIdentity) {
+      throw new Error('No identity set');
+    }
+
+    const message = {
+      subject,
+      body,
+      timestamp: Date.now(),
+    };
+
+    const encrypted = this.encryptionService.encryptJson(message, recipientEncryptionKey);
+
+    const envelope: MessageEnvelope = {
+      type: 'plain',
+      from: this.currentIdentity.address,
+      to,
+      encrypted,
+      timestamp: Date.now(),
+    };
+
+    let messageId: string;
+
+    // Try P2P first, fall back to local storage
+    if (this.isP2PAvailable()) {
+      messageId = await this.p2pNode.sendMessage(envelope);
+    } else {
+      // Store locally when P2P is unavailable
+      await this.initLocalStorage();
+      messageId = this.generateMessageId(envelope);
+
+      // Store for recipient
+      const envelopeData = Buffer.from(JSON.stringify(envelope)).toString('base64');
+      await this.dhtStorage.store(to, envelopeData);
+
+      // Also store in our sent items (if sending to ourselves, this also delivers)
+      if (to === this.currentIdentity.address) {
+        await this.dhtStorage.store(this.currentIdentity.address, envelopeData);
+      }
+
+      console.log('Message stored locally (P2P unavailable):', messageId);
+    }
+
+    return {
+      messageId,
+      timestamp: envelope.timestamp,
+    };
+  }
+
+  /**
+   * Send a pre-encrypted message
+   */
+  async sendEncryptedMessage(
+    to: string,
+    encrypted: SerializedEncryptedMessage,
+    routingToken?: string,
+  ): Promise<SendResult> {
+    if (!this.currentIdentity) {
+      throw new Error('No identity set');
+    }
+
+    const envelope: MessageEnvelope = {
+      type: routingToken ? 'sealed' : 'plain',
+      from: this.currentIdentity.address,
+      to,
+      routingToken,
+      encrypted,
+      timestamp: Date.now(),
+    };
+
+    let messageId: string;
+
+    if (this.isP2PAvailable()) {
+      messageId = await this.p2pNode.sendMessage(envelope);
+    } else {
+      await this.initLocalStorage();
+      messageId = this.generateMessageId(envelope);
+      const envelopeData = Buffer.from(JSON.stringify(envelope)).toString('base64');
+      await this.dhtStorage.store(to, envelopeData);
+    }
+
+    return {
+      messageId,
+      timestamp: envelope.timestamp,
+    };
+  }
+
+  /**
+   * Get inbox messages
+   */
+  async getInbox(): Promise<StoredMessage[]> {
+    if (this.isP2PAvailable()) {
+      return this.p2pNode.getInbox();
+    }
+
+    // Use local storage when P2P unavailable
+    if (!this.currentIdentity) return [];
+
+    await this.initLocalStorage();
+    const records = await this.dhtStorage.getMessages(this.currentIdentity.address);
+
+    return records.map((record: MessageRecord) => {
+      try {
+        const envelope = JSON.parse(
+          Buffer.from(record.data, 'base64').toString(),
+        ) as MessageEnvelope;
+        return {
+          id: record.id,
+          ...envelope,
+          receivedAt: record.timestamp,
+          read: false,
+        } as StoredMessage;
+      } catch {
+        return null;
+      }
+    }).filter((msg): msg is StoredMessage => msg !== null);
+  }
+
+  /**
+   * Get a specific message
+   */
+  async getMessage(messageId: string): Promise<StoredMessage | null> {
+    if (this.isP2PAvailable()) {
+      return this.p2pNode.getMessage(messageId);
+    }
+
+    if (!this.currentIdentity) return null;
+
+    await this.initLocalStorage();
+    const record = await this.dhtStorage.getMessage(this.currentIdentity.address, messageId);
+    if (!record) return null;
+
+    try {
+      const envelope = JSON.parse(
+        Buffer.from(record.data, 'base64').toString(),
+      ) as MessageEnvelope;
+      return {
+        id: record.id,
+        ...envelope,
+        receivedAt: record.timestamp,
+        read: false,
+      } as StoredMessage;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Decrypt a message
+   */
+  decryptMessage(message: StoredMessage): DecryptedMessage | null {
+    if (!this.currentIdentity) {
+      throw new Error('No identity set');
+    }
+
+    try {
+      const encrypted = message.encrypted as SerializedEncryptedMessage;
+      const decrypted = this.encryptionService.decryptJson<{
+        subject: string;
+        body: string;
+        timestamp: number;
+      }>(encrypted, this.currentIdentity.encryptionPrivateKey);
+
+      return {
+        id: (message as StoredMessage & { id?: string }).id || '',
+        from: message.from || '',
+        to: message.to || '',
+        subject: decrypted.subject,
+        body: decrypted.body,
+        timestamp: message.timestamp,
+        receivedAt: message.receivedAt,
+        read: message.read,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Mark a message as read
+   */
+  async markAsRead(messageId: string): Promise<void> {
+    if (this.isP2PAvailable()) {
+      await this.p2pNode.markAsRead(messageId);
+    }
+    // Local storage doesn't track read status separately
+  }
+
+  /**
+   * Delete a message
+   */
+  async deleteMessage(messageId: string): Promise<void> {
+    if (this.isP2PAvailable()) {
+      await this.p2pNode.deleteMessage(messageId);
+    } else if (this.currentIdentity) {
+      await this.initLocalStorage();
+      await this.dhtStorage.deleteMessage(this.currentIdentity.address, messageId);
+    }
+  }
+
+  /**
+   * Get node info
+   */
+  getNodeInfo(): { peerId: string | undefined; address: string; peers: number; addresses: string[] } {
+    if (this.isP2PAvailable()) {
+      return this.p2pNode.getInfo();
+    }
+
+    // Return local-only info when P2P is unavailable
+    return {
+      peerId: undefined,
+      address: this.currentIdentity?.address || '',
+      peers: 0,
+      addresses: [],
+    };
+  }
+
+  /**
+   * Register message handler
+   */
+  onMessage(id: string, handler: (envelope: MessageEnvelope) => void): () => void {
+    return this.p2pNode.onMessage(id, handler);
+  }
+}

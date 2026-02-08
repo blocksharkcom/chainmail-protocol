@@ -1,0 +1,18 @@
+services:
+  relay:
+    build:
+      context: .
+      target: relay
+    ports:
+      - "4001:4001"
+      - "4002:4002"
+    volumes:
+      - relay-data:/root/.dmail-relay
+    environment:
+      - PORT=4001
+      - WS_PORT=4002
+      - WALLET_ADDRESS=${WALLET_ADDRESS}
+    restart: unless-stopped
+
+volumes:
+  relay-data:

@@ -1,0 +1,86 @@
+services:
+  api:
+    build:
+      context: .
+      target: api
+    ports:
+      - "3001:3001"
+    volumes:
+      - api-data:/root/.dmail
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+      - ALLOWED_ORIGINS=http://localhost,http://localhost:80,http://localhost:5173
+      - DMAIL_DOMAIN=dmail.network
+      # Relay nodes for message storage (Docker internal hostnames)
+      - RELAY_HOSTS=relay1:4001,relay2:4001
+    depends_on:
+      - relay1
+      - relay2
+    networks:
+      - dmail-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        - VITE_API_URL=http://localhost:3001
+        - VITE_WS_URL=ws://localhost:3001/ws
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - dmail-network
+    restart: unless-stopped
+
+  relay1:
+    build:
+      context: .
+      target: relay
+    ports:
+      - "4001:4001"
+      - "4002:4002"
+    volumes:
+      - relay1-data:/root/.dmail-relay
+    environment:
+      - PORT=4001
+      - WS_PORT=4002
+      - WALLET_ADDRESS=${RELAY1_WALLET:-}
+    networks:
+      - dmail-network
+    restart: unless-stopped
+
+  relay2:
+    build:
+      context: .
+      target: relay
+    ports:
+      - "4003:4001"
+      - "4004:4002"
+    volumes:
+      - relay2-data:/root/.dmail-relay
+    environment:
+      - PORT=4001
+      - WS_PORT=4002
+      - WALLET_ADDRESS=${RELAY2_WALLET:-}
+    networks:
+      - dmail-network
+    restart: unless-stopped
+
+volumes:
+  api-data:
+  relay1-data:
+  relay2-data:
+
+networks:
+  dmail-network:
+    driver: bridge
